@@ -1,6 +1,6 @@
-# PObT----Persistent-Object-Tracker
+# PObT - Persistent Object Tracker
 
-This software system will maintain a list of all objects that are detected by video cameras and other sensors.  It makes this list of objects, their identities, and predicted motions available to other system components.
+This package will maintain a list of all objects that are detected by video cameras and other sensors.  It makes this list of objects, their identities, and predicted motions available to other system components.
 
 PObT uses a simple algorithm inspired by older analog radar systems.  Each time a target is detected it is made brighter on the radar screen by an amount proportionate to the confidence in the object's detection and how well it matches previous detections.  At the same time, the object's brightness slowly fades over time.
 
