@@ -1,148 +1,171 @@
-from collections import namedtuple
-import boxes as bx
 
-# This class holds a detected detected object from a video frame.
-Det = namedtuple('Det',
-                 ['label',  # str
-                  'box',    # (x1,y2,x2,y2)
-                  'confidence'])
+from typing import NamedTuple, Any, Callable, Union
+from recordclass import RecordClass
+import bounding_box as bb
 
-# This class holds one detected object and any "notes and book keeping" that are used
-# to track objects between frames
-Obj = namedtuple('Obj',
-                 ['det',
-                  'brightness'])
+# Detections are not mutable.  They remain whatever the object detection network
+# thinks it detected.
+class Detection(NamedTuple):
+    label: str
+    confidence: float
+    box: bb.BoundingBox
+
+# Tracked objects are mutable.  They chance over time as they are seen
+# in more or less frames
+class TrackedObject(RecordClass):
+    label:          str
+    brightness:     float
+    last_box:       bb.BoundingBox
+    num_detections: int
 
 
-class DetectedObjects:
+class ObjectTracker:
+    """
+    A class that maintains a list of tracked objects by tracking objects across many video frames
+    """
+
     def __init__(self):
-        """creates a new empty list of objects"""
-        d = Det('null', (0,0,0,0), 0.0)
-        self.objects = [Obj(d, 0.0)]
+        """
+        creates a new empty list of tracked objects
+        """
+        self._tracked_objects = []   # list of TrackedObject
+        self.min_confidence = 0.25  # TODO: This number is just a guess
+        self.min_overlap = 0.25     # TODO: This number is just a guess
+        self.min_brightness = 0.01  # TODO: This number is just a guess
 
     def add_detection_list(self,
-                           detection_list):     #
+                           detection_list):  #
         """
         Process a list of all objects detected in one frame.
 
         Params:
-            detection_list      list of ('label', (x1,y1,x2,y2), confidence)
+            detection_list      list of 'Detection'
 
         Returns:
             none
 
-        >>> objects = DetectedObjects()
-        >>> objects.dump()
-        Obj(det=Det(label='null', box=(0, 0, 0, 0), confidence=0.0), brightness=0.0)
-
-        >>> objects.clear()
-        >>> f1 = [  ("cat", (1.0, 1.0, 4.0, 4.0), 0.81),
-        ...         ("dog", (5.0, 5.0, 8.0, 8.0), 0.75),        # first dog in frame
-        ...         ("ell", (7.0, 5.0, 12.1, 8.0), 0.75),
-        ...         ("dog", (15.0, 15.0, 18.0, 18.0), 0.70)]    # second dog in same frame
+        >>> objects = ObjectTracker()
+        >>> f1 = [  Detection("cat", 0.81, bb.BoundingBox( 2.0,  3.0,  4.0,  5.0)),
+        ...         Detection("dog", 0.75, bb.BoundingBox( 5.0,  8.0,  8.0,  9.0)),      # first dog in frame
+        ...         Detection("dog", 0.55, bb.BoundingBox(15.0, 18.0, 15.0, 18.0))]      # second dog in same frame
         >>> objects.add_detection_list(f1)
         >>> objects.dump()
-        (Det(label='cat', box=(1.0, 1.0, 4.0, 4.0), confidence=0.81), 0.81)
-        (Det(label='dog', box=(5.0, 5.0, 8.0, 8.0), confidence=0.75), 0.75)
-        (Det(label='ell', box=(7.0, 5.0, 12.1, 8.0), confidence=0.75), 0.75)
-        (Det(label='dog', box=(15.0, 15.0, 18.0, 18.0), confidence=0.7), 0.7)
-
-        >>> objects.add_detection_list(f1)
+        TrackedObject(label='cat', brightness=0.81, last_box=<BoundingBox 2.0, 3.0, 4.0, 5.0>, num_detections=1)
+        TrackedObject(label='dog', brightness=0.75, last_box=<BoundingBox 5.0, 8.0, 8.0, 9.0>, num_detections=1)
+        TrackedObject(label='dog', brightness=0.55, last_box=<BoundingBox 15.0, 18.0, 15.0, 18.0>, num_detections=1)
+        >>> objects.count()
+        3
+        >>> f2 = [  Detection("dog", 0.75, bb.BoundingBox( 5.0,  8.0,  8.0,  9.0)),      # first dog in frame
+        ...         Detection("dog", 0.55, bb.BoundingBox(15.0, 18.0, 15.0, 18.0))]      # second dog in same frame
+        >>> objects.add_detection_list(f2)
         >>> objects.dump()
-        (Det(label='cat', box=(1.0, 1.0, 4.0, 4.0), confidence=0.81), 1.2175)
-        (Det(label='dog', box=(5.0, 5.0, 8.0, 8.0), confidence=0.75), 1.1125)
-        (Det(label='ell', box=(7.0, 5.0, 12.1, 8.0), confidence=0.75), 1.1125)
-        (Det(label='dog', box=(15.0, 15.0, 18.0, 18.0), confidence=0.7), 1.025)
-
-        >>> objects.add_detection_list([])
-        >>> objects.dump()
-        (Det(label='cat', box=(1.0, 1.0, 4.0, 4.0), confidence=0.81), 0.713125)
-        (Det(label='dog', box=(5.0, 5.0, 8.0, 8.0), confidence=0.75), 0.6343750000000001)
-        (Det(label='ell', box=(7.0, 5.0, 12.1, 8.0), confidence=0.75), 0.6343750000000001)
-        (Det(label='dog', box=(15.0, 15.0, 18.0, 18.0), confidence=0.7), 0.5687499999999999)
+        TrackedObject(label='cat', brightness=0.40750000000000003, last_box=<BoundingBox 2.0, 3.0, 4.0, 5.0>, num_detections=1)
+        TrackedObject(label='dog', brightness=1.1125, last_box=<BoundingBox 5.0, 8.0, 8.0, 9.0>, num_detections=2)
+        TrackedObject(label='dog', brightness=0.7625000000000001, last_box=<BoundingBox 15.0, 18.0, 15.0, 18.0>, num_detections=2)
         """
 
-        self.fade_objects()
-        self.clear_dark_objects()
+        # Reduce the "brightness" of every tracked objectself.fade_objects
+        self._fade_objects()
+
+        # Clear "dark" tracked objects from the list
+        self._tracked_objects = list(filter(self._bright_enough, self._tracked_objects))
 
         for d in detection_list:
-            label, box, confidence = d
-            self.add_detection(label, box, confidence)
+            if d.confidence >= self.min_confidence:
+                self._apply_detection(d)
 
-    def add_detection(self,
-                      class_label: str,
-                      box,
-                      confidence):
+    def get_tracked_objects(self,
+                            min_brightness: float,
+                            min_detections: int):
+        """ Returns a list of tracked objects that meet a filter criteria
+
+        Doctest Example:
+        >>> objects = ObjectTracker()
+        >>> f1 = [  Detection("cat", 0.81, bb.BoundingBox( 2.0,  3.0,  4.0,  5.0)),
+        ...         Detection("dog", 0.75, bb.BoundingBox( 5.0,  8.0,  8.0,  9.0))]
+        >>> objects.add_detection_list(f1)
+        >>> objects.get_tracked_objects(0.8, 1)
+        [TrackedObject(label='cat', brightness=0.81, last_box=<BoundingBox 2.0, 3.0, 4.0, 5.0>, num_detections=1)]
+        """
+
+        selected = lambda obj: (obj.brightness >= min_brightness) and \
+                               (obj.num_detections >= min_detections)
+
+        objects = list(filter(selected, self._tracked_objects))
+        return objects
+
+    def _apply_detection(self,
+                         det: Detection):
         """
         Add one detection to the list of detected objects
 
         Params:
-            class_label, a string that contains the name of class the detection belongs to.
-            box, (x1, y1, x2, y2) Bounding box for detection.
         """
+        assert (isinstance(det, Detection)), 'must be Detection'
 
         best_score = -1.0
         best_match_index = -1
         brightness = 0.0
 
-        for i, obj in enumerate(self.objects):
+        for i, t_obj in enumerate(self._tracked_objects):
 
             # Labels must match exactly.
-            # todo: implement a class label match where perhaps cat matches animal
-            d = Det("",(0,0,0,0),0.0)
-            d = obj[0]
-            if d.label == class_label:
+            # todo: implement a label match where perhaps cat matches animal
+            if t_obj.label == det.label:
 
-                over = bx.overlap_amount(d.box, box)
-                if over > 0.25:
-                    current_score = d.confidence * over
+                overlap = t_obj.last_box.overlap_amount(det.box)
+                if overlap > self.min_overlap:
+
+                    # todo: How to rate the degree of match is a big deal needs to be smarter
+                    current_score = det.confidence * overlap
                     if current_score > best_score:
                         best_score = current_score
                         best_match_index = i
 
-        d = Det(class_label, box, confidence)
-
+        # Did the above for loop find a match?
         if best_score > 0.0:
-            current_brightness = self.objects[best_match_index][1]
-            new_brightness = min(10.0, current_brightness + best_score)
-            self.objects[best_match_index] = (d, new_brightness)
+            # yes, we got a match so update the tracked object with this new data.
+            self._tracked_objects[best_match_index].brightness += best_score
+            self._tracked_objects[best_match_index].last_box = det.box
+            self._tracked_objects[best_match_index].num_detections += 1
         else:
-            self.objects.append((d, confidence))
+            # no match was found so treat this as a new tracked object
+            tracked_obj = TrackedObject(det.label,
+                                        det.confidence,
+                                        det.box,
+                                        1)
+            self._tracked_objects.append(tracked_obj)
 
-    def bright_enough(self, obj) -> bool:
+    def _bright_enough(self, obj: TrackedObject) -> bool:
         """
         Apply a threshold.  Placeholder for something more complex later.
+
         """
 
-        if obj[1] > 0.0:
+        if obj.brightness >= self.min_brightness:
             return True
         else:
             return False
 
-    def clear_dark_objects(self) -> None:
-        """
-        remove all objects from list that have "expired".
-        """
-        self.objects = list(filter(self.bright_enough, self.objects))
 
-    def fade_objects(self) -> None:
+    def _fade_objects(self) -> None:
         """
         decrease the "brightness" of every tracked object.
         """
-        # todo replace the for loop with a map function
-        for i, obj in enumerate(self.objects):
-            bright = max(0.0, 0.75 * obj[1] - 0.2)
-            self.objects[i] = (obj[0], bright)
+        for i, trkobj in enumerate(self._tracked_objects):
+            bright = max(0.0, 0.75 * trkobj.brightness - 0.2)
+            self._tracked_objects[i].brightness = bright
 
     def count(self) -> int:
-        return len(self.objects)
+        return len(self._tracked_objects)
 
-    def clear(self) -> int:
-        self.objects = []
+    def clear(self) -> None:
+        self._tracked_objects = []
 
     def dump(self) -> None:
-        for obj in self.objects:
+        for obj in self._tracked_objects:
             print(obj)
+
 
 if __name__ == "__main__":
     import doctest

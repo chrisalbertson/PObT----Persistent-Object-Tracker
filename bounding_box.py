@@ -1,9 +1,14 @@
 class BoundingBox:
+    """ A class to represent bounding boxes and compute some basic geometry on them. """
+
     def __init__(self,
                  x_min: float,
                  x_max: float,
                  y_min: float,
                  y_max: float):
+
+        assert (x_min < x_max), 'x_min not less than x_max'
+        assert (y_min < y_max), 'y_min not less than y_max'
 
         self.x_min = x_min
         self.x_max = x_max
@@ -12,10 +17,9 @@ class BoundingBox:
 
 
     def __repr__(self):
-        """
+        """Return a string that is a human readable represention of a bounding box
 
-        Returns:
-
+        Doctest Examle:
         >>> bb = BoundingBox(1.0, 2.0, 3.0, 4.0)
         >>> bb.__repr__()
         '<BoundingBox 1.0, 2.0, 3.0, 4.0>'
@@ -24,10 +28,9 @@ class BoundingBox:
 
     @property
     def x_size(self):
-        """
+        """Return the width in the X direction of a bounding box
 
-        Returns:
-
+        Doctest Examle:
         >>> bb = BoundingBox(1.0, 2.0, 1.0, 3.0)
         >>> bb.x_size
         1.0
@@ -36,10 +39,9 @@ class BoundingBox:
 
     @property
     def y_size(self):
-        """
+        """Return the hight in the Y direction of a bounding box
 
-        Returns:
-
+        Doctest Examle:
         >>> bb = BoundingBox(1.0, 2.0, 1.0, 3.0)
         >>> bb.y_size
         2.0
@@ -48,10 +50,9 @@ class BoundingBox:
 
     @property
     def x_mid(self):
-        """
+        """Return the mid point in the X direction of a bounding box
 
-        Returns:
-
+        Doctest Examle:
         >>> bb = BoundingBox(1.0, 2.0, 1.0, 3.0)
         >>> bb.x_mid
         1.5
@@ -60,10 +61,9 @@ class BoundingBox:
 
     @property
     def y_mid(self):
-        """
+        """Return the mid point in the Y direction of a bounding box
 
-        Returns:
-
+        Doctest Examle:
         >>> bb = BoundingBox(1.0, 2.0, 1.0, 3.0)
         >>> bb.y_mid
         2.0
@@ -71,8 +71,10 @@ class BoundingBox:
         return (self.y_max + self.y_min) / 2.0
 
     def overlap_amount(self, box2) -> float:
-        """
-        Determine how much, if any box1 intersects box2
+        """Determine how much, if any box1 intersects box2
+
+        Overlap is defined here on a scale of 0.0 to 1.0 where 0.0 means the boxes
+        do not intersect at all.  1.0 means the boxes are identical.
 
         Params:
             box2: another BoundingBox object
@@ -80,25 +82,28 @@ class BoundingBox:
         Returns:
             float, intersection ratio
 
-    >>> bb1 = BoundingBox(1.0, 3.0, 1.0, 3.0)
-    >>> bb2 = BoundingBox(1.0, 3.0, 1.0, 3.0)
-    >>> bb1.overlap_amount(bb2)
-    1.0
+        Doctest Examle:
+        >>> bb1 = BoundingBox(1.0, 3.0, 1.0, 3.0)
+        >>> bb2 = BoundingBox(1.0, 3.0, 1.0, 3.0)
+        >>> bb1.overlap_amount(bb2)
+        1.0
 
-    >>> bb1 = BoundingBox(1.0, 2.0, 1.0, 2.0)
-    >>> bb2 = BoundingBox(3.0, 4.0, 3.0, 4.0)
-    >>> bb1.overlap_amount(bb2)
-    0.0
+        >>> bb1 = BoundingBox(1.0, 2.0, 1.0, 2.0)
+        >>> bb2 = BoundingBox(3.0, 4.0, 3.0, 4.0)
+        >>> bb1.overlap_amount(bb2)
+        0.0
 
-    >>> bb1 = BoundingBox(1,2,1,2)
-    >>> bb2 = BoundingBox(1,4,1,2)
-    >>> bb1.overlap_amount(bb2)
-    0.5
+        >>> bb1 = BoundingBox(1,2,1,2)
+        >>> bb2 = BoundingBox(1,4,1,2)
+        >>> bb1.overlap_amount(bb2)
+        0.5
 
-    >>> bb1 = BoundingBox(0,3,1,2)
-    >>> bb2 = BoundingBox(1,2,0,3)
-    >>> bb1.overlap_amount(bb2)
-    0.3333333333333333
+        Verify that type checking works
+        >>> bb1 = BoundingBox(0,3,1,2)
+        >>> bb1.overlap_amount( 100.5 )
+        Traceback (most recent call last):
+        ...
+        TypeError: box2 needs to be a BoundingBox
         """
 
         # Verify box2 is the correct type
@@ -141,9 +146,7 @@ def range_overlap(a1: float, a2: float,
     Returns:
         A tuple, (float, float) that gives the intersection
 
-
     Doctest Examples:
-
     >>> range_overlap(1.0, 4.0, 2.0, 6.0)
     (2.0, 4.0)
 
@@ -158,21 +161,19 @@ def range_overlap(a1: float, a2: float,
     """
 
     # Validate params
-    if a1 >= a2 :
-        raise ValueError("a1 not < a2")
-    if b1 >= b2 :
-        raise ValueError("b1 not < b2")
+    assert (a1 < a2), "a1 not < a2"
+    assert (b1 < b2), "b1 not < b2"
 
-    if   (b1 <= a1 <= b2) and (b1 <= a2 <= b2) :
+    if (b1 <= a1 <= b2) and (b1 <= a2 <= b2):
         return a1, a2       # a is fully contained in b
 
-    elif (a1 <= b1 <= a2) and (a1 <= b2 <= a2) :
+    elif (a1 <= b1 <= a2) and (a1 <= b2 <= a2):
         return b1, b2       # b is fully contained in a
 
-    elif b1 <= a1 <= b2 :
+    elif b1 <= a1 <= b2:
         return a1, b2       # a is to the right
 
-    elif b1 <= a2 <= b2 :
+    elif b1 <= a2 <= b2:
         return b1, a2       # a is to the left
 
     else:
