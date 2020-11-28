@@ -37,7 +37,7 @@ class MyTestCase(unittest.TestCase):
         tracked = self.objects.get_tracked_objects(1.0, 2)
 
         # "tracked" should contain one object that looks like this:
-        # TrackedObject(label='dog', brightness=1.1125, last_box=<BoundingBox 5.0, 8.0, 8.0, 9.0>, num_detections=2)
+        # TrackedObject(label='dog', brightness=1.1125, ad_list=<BoundingBox 5.0, 8.0, 8.0, 9.0>, num_detections=2)
         self.assertEqual(len(tracked), 1)
         for t in tracked:
             self.assertGreater(t.brightness, 1.0, 'filter asked for >= 1.0')
